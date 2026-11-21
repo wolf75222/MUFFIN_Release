@@ -44,3 +44,10 @@ void LaxFriedrichFlux::fluxWithEigenvalues(const CellDataRef uL, const CellDataR
 }
 
 
+
+// The first line of operator(): the two calls are the arguments of max, evaluated in the order the compiler gives to
+// the arguments of a call, the same in both functions.
+void LaxFriedrichFlux::eigenvalueCalls(const CellDataRef uL, const CellDataRef uR, bool callL, bool callR)
+{
+    (void) max(callL ? abs(m_pm->getMaxEigenvalue(uL)) : 0., callR ? abs(m_pm->getMaxEigenvalue(uR)) : 0.);
+}

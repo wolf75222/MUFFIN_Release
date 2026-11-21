@@ -7,6 +7,7 @@
 //
 
 #include "FVM1D.hpp"
+#include "../PhysicalModel/ModelWarnings.hpp"
 #include "../FluxScheme/FluxSchemeFactory.hpp"
 #include "../SourceTerm/SourceTermFactory.hpp"
 #include "../SpaceReconstructor/ReconstructorFactory.hpp"
@@ -35,6 +36,8 @@ void FVM1D::setup(){
     m_rhs   = &MeshData::getInstance().getData<double>("rhs");
     m_lambdaL.assign(NBCELLS, 0.);
     m_lambdaR.assign(NBCELLS, 0.);
+    m_warnL.assign(NBCELLS, 0);
+    m_warnR.assign(NBCELLS, 0);
     m_faceFlux.assign((NBCELLS + 1)*NBEQS, 0.);
 
     // Initialize the flux scheme
@@ -130,9 +133,16 @@ void FVM1D::computeRHS(){
     m_reconstructor->reconstructField();
 
     // Each face flux and each eigenvalue once, the same values as computeRHSReference, which computes the
-    // flux of a face twice and the eigenvalue of a state four times. computeRHSReference runs instead when the
-    // model has no quiet eigenvalue or when a state needs its warning: the log is then printed as before.
-    if (!(m_pm->hasQuietEigenvalue() && quietEigenvalues())) {
+    // flux of a face twice and the eigenvalue of a state four times. When states need the warning of the model,
+    // getMaxEigenvalue runs again on them in the order of computeRHSReference, so that the log is the same.
+    // computeRHSReference runs instead when the model has no quiet eigenvalue, or when a state needs the warning
+    // and the flux scheme does not give the order of its calls.
+    if (!m_pm->hasQuietEigenvalue()) {
+        computeRHSReference();
+        return;
+    }
+    const bool warnings = !quietEigenvalues();
+    if (warnings && !m_flux->hasEigenvalueCalls()) {
         computeRHSReference();
         return;
     }
@@ -168,8 +178,12 @@ void FVM1D::computeRHS(){
         m_dt     = min(m_dt, m_dtOvdx*cells[iCell].dx);
     }
 
+    if (warnings) eigenvalueCallsBeforeSource();
+
     // Compute the sourceTerm
     sourceterm.computeSource();
+
+    if (warnings) eigenvalueCallsAfterSource();
 
     maxEigenvalue    = max(maxEigenvalue, max(lR[n1],max(m_lambdaOut, max(lR[n1-1], lL[n1]))));
     m_dtOvdx = min(m_dtOvdx, CFL/maxEigenvalue);
@@ -182,17 +196,58 @@ void FVM1D::computeRHS(){
 bool FVM1D::quietEigenvalues(){
     vector<Cell1D>& cells = *m_cells;
     double lambda;
-    bool ok = m_pm->getMaxEigenvalueQuiet(m_uInlet, lambda);
+    m_warnIn = !m_pm->getMaxEigenvalueQuiet(m_uInlet, lambda);
     m_lambdaIn = abs(lambda);
-    ok = m_pm->getMaxEigenvalueQuiet(m_uOutlet, lambda) && ok;
+    m_warnOut = !m_pm->getMaxEigenvalueQuiet(m_uOutlet, lambda);
     m_lambdaOut = abs(lambda);
+    bool ok = !(m_warnIn || m_warnOut);
     for (int iCell = 0; iCell < NBCELLS; ++iCell) {
-        ok = m_pm->getMaxEigenvalueQuiet(cells[iCell].uL, lambda) && ok;
+        m_warnL[iCell] = !m_pm->getMaxEigenvalueQuiet(cells[iCell].uL, lambda);
         m_lambdaL[iCell] = abs(lambda);
-        ok = m_pm->getMaxEigenvalueQuiet(cells[iCell].uR, lambda) && ok;
+        m_warnR[iCell] = !m_pm->getMaxEigenvalueQuiet(cells[iCell].uR, lambda);
         m_lambdaR[iCell] = abs(lambda);
+        ok = ok && !(m_warnL[iCell] || m_warnR[iCell]);
     }
     return ok;
+}
+
+// The calls of getMaxEigenvalue of computeRHSReference on the states that need the warning, in the same order:
+// for each cell the fluxes of its right and left faces, then its four states. The warnings are written at once
+// before the source term, which may print.
+void FVM1D::eigenvalueCallsBeforeSource(){
+    vector<Cell1D>& c = *m_cells;
+    const int n1 = NBCELLS - 1;
+    const char* wL = m_warnL.data();
+    const char* wR = m_warnR.data();
+    auto face = [&](const CellDataRef& uL, bool callL, const CellDataRef& uR, bool callR) {
+        if (callL || callR) m_flux->eigenvalueCalls(uL, uR, callL, callR);
+    };
+    auto state = [&](const CellDataRef& u, bool call) {
+        if (call) m_pm->getMaxEigenvalue(u);
+    };
+    ModelWarnings::hold();
+    face(c[0].uR, wR[0], c[1].uL, wL[1]);
+    face(m_uInlet, m_warnIn, c[0].uL, wL[0]);
+    state(c[0].uR, wR[0]); state(c[1].uL, wL[1]); state(m_uInlet, m_warnIn); state(c[0].uL, wL[0]);
+    for (int i = 1; i < n1; ++i) {
+        face(c[i].uR, wR[i], c[i+1].uL, wL[i+1]);
+        face(c[i-1].uR, wR[i-1], c[i].uL, wL[i]);
+        state(c[i].uR, wR[i]); state(c[i+1].uL, wL[i+1]); state(c[i-1].uR, wR[i-1]); state(c[i].uL, wL[i]);
+    }
+    face(c[n1].uR, wR[n1], m_uOutlet, m_warnOut);
+    face(c[n1-1].uR, wR[n1-1], c[n1].uL, wL[n1]);
+    ModelWarnings::release();
+}
+
+void FVM1D::eigenvalueCallsAfterSource(){
+    vector<Cell1D>& c = *m_cells;
+    const int n1 = NBCELLS - 1;
+    ModelWarnings::hold();
+    if (m_warnR[n1]) m_pm->getMaxEigenvalue(c[n1].uR);
+    if (m_warnOut) m_pm->getMaxEigenvalue(m_uOutlet);
+    if (m_warnR[n1-1]) m_pm->getMaxEigenvalue(c[n1-1].uR);
+    if (m_warnL[n1]) m_pm->getMaxEigenvalue(c[n1].uL);
+    ModelWarnings::release();
 }
 
 void FVM1D::applySourceFrequency(){

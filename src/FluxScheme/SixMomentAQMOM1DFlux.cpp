@@ -75,3 +75,10 @@ void SixMomentAQMOM1DFlux::fluxWithEigenvalues(const CellDataRef uL, const CellD
     const double max_v = max(abs(vL),abs(vR));
     F[5] = 0.5*(m_flux_l[5] + m_flux_r[5]) - max_v*0.5*(uR[5] - uL[5]);
 }
+
+// The first line of operator(): the two calls are the arguments of max, evaluated in the order the compiler gives to
+// the arguments of a call, the same in both functions.
+void SixMomentAQMOM1DFlux::eigenvalueCalls(const CellDataRef uL, const CellDataRef uR, bool callL, bool callR)
+{
+    (void) max(callL ? abs(m_pm->getMaxEigenvalue(uL)) : 0., callR ? abs(m_pm->getMaxEigenvalue(uR)) : 0.);
+}

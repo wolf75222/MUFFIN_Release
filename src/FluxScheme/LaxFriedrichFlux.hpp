@@ -23,6 +23,8 @@ public:
     ~LaxFriedrichFlux(){}
     vector<double>& operator() (const CellDataRef uL, const CellDataRef uR);
     void fluxWithEigenvalues(const CellDataRef uL, const CellDataRef uR, double lambdaL, double lambdaR, double* F);
+    bool hasEigenvalueCalls() const {return true;}
+    void eigenvalueCalls(const CellDataRef uL, const CellDataRef uR, bool callL, bool callR);
 protected:
     vector<double> m_flux;
     vector<double> m_eigenvals_l;

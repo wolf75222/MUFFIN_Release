@@ -8,6 +8,7 @@
 
 #include "FiveMomentQMOM1D.hpp"
 #include "QMOMMaxEigenvalue.hpp"
+#include "ModelWarnings.hpp"
 #include <vector>
 #include <cmath>
 #include <algorithm>    // std::min_element, std::max_element
@@ -31,10 +32,8 @@ double FiveMomentQMOM1D::getMaxEigenvalue(const CellDataRef u)
     bool realizable;
     double q_nStar, r_nStar;
     const double lambda = qmomMaxEigenvalue(u, realizable, q_nStar, r_nStar);
-    if(!realizable){
-        py::print("WARNING: You are out of the realizability");
-        py::print("QStar = ", q_nStar, "  RStar = ", r_nStar);
-    }
+    if(!realizable)
+        ModelWarnings::realizability(q_nStar, r_nStar);
     return lambda;
 }
 

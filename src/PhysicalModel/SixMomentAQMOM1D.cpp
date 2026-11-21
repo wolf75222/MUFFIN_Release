@@ -8,6 +8,7 @@
 
 #include "SixMomentAQMOM1D.hpp"
 #include "QMOMMaxEigenvalue.hpp"
+#include "ModelWarnings.hpp"
 #include "PhysicalModelRegistrar.hpp"
 #include <vector>
 
@@ -30,10 +31,8 @@ double SixMomentAQMOM1D::getMaxEigenvalue(const CellDataRef u)
     bool realizable;
     double q_nStar, r_nStar;
     const double lambda = qmomMaxEigenvalue(u, realizable, q_nStar, r_nStar);
-    if(!realizable){
-        py::print("WARNING: You are out of the realizability");
-        py::print("QStar = ", q_nStar, "  RStar = ", r_nStar);
-    }
+    if(!realizable)
+        ModelWarnings::realizability(q_nStar, r_nStar);
     return lambda;
 }
 

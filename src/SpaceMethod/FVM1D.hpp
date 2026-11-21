@@ -68,12 +68,17 @@ protected:
     vector<double> m_Fim12;
 
     bool quietEigenvalues();
+    void eigenvalueCallsBeforeSource();
+    void eigenvalueCallsAfterSource();
     void applySourceFrequency();
     vector<Cell1D>* m_cells = nullptr;
     vector<double>* m_rhs = nullptr;
     vector<double> m_lambdaL;               // |largest eigenvalue| of the left and right states of each cell
     vector<double> m_lambdaR;
     double m_lambdaIn = 0., m_lambdaOut = 0.;
+    vector<char> m_warnL;                   // true for the states for which getMaxEigenvalue prints a warning
+    vector<char> m_warnR;
+    bool m_warnIn = false, m_warnOut = false;
     vector<double> m_faceFlux;              // flux of face i at i*NBEQS, faces 0 to NBCELLS
 };
 

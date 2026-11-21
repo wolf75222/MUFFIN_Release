@@ -28,6 +28,11 @@ public:
         const vector<double>& f = (*this)(uL, uR);
         std::copy(f.begin(), f.end(), F);
     }
+    // True if eigenvalueCalls gives the calls of getMaxEigenvalue made by operator(), in the same order.
+    virtual bool hasEigenvalueCalls() const {return false;}
+    // Calls getMaxEigenvalue on the states of operator() for which call is true, in the order of operator(), so
+    // that the warnings printed by the model come in the same order.
+    virtual void eigenvalueCalls(const CellDataRef uL, const CellDataRef uR, bool callL, bool callR) {}
 protected:
     PhysicalModel* m_pm;
 };
