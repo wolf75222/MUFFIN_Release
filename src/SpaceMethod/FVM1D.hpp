@@ -16,6 +16,7 @@
 #include "../SpaceReconstructor/SpaceReconstructor.hpp"
 #include "../BoundaryCondition/BoundaryCondition.hpp"
 #include "../Parameters.hpp"
+#include "../MeshData/Cell1D.hpp"
 #include <mpi.h>
 
 using namespace Parameters;
@@ -29,6 +30,7 @@ public:
     void unsetup();
     virtual void setBoundaries();
     virtual void computeRHS();
+    void computeRHSReference();             // fluxes, source and time step as in the original code
     virtual void computeSource();
     virtual void computeEField();
     virtual void computeFluxes();
@@ -64,6 +66,15 @@ protected:
     CellDataRef m_uOutlet;
     vector<double> m_Fip12;
     vector<double> m_Fim12;
+
+    bool quietEigenvalues();
+    void applySourceFrequency();
+    vector<Cell1D>* m_cells = nullptr;
+    vector<double>* m_rhs = nullptr;
+    vector<double> m_lambdaL;               // |largest eigenvalue| of the left and right states of each cell
+    vector<double> m_lambdaR;
+    double m_lambdaIn = 0., m_lambdaOut = 0.;
+    vector<double> m_faceFlux;              // flux of face i at i*NBEQS, faces 0 to NBCELLS
 };
 
 #endif /* FVM1D_hpp */

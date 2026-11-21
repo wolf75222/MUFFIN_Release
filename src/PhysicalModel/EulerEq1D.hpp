@@ -27,6 +27,7 @@ public:
     
     virtual vector<double>& getEigenvalues(const CellDataRef u);
     virtual double getMaxEigenvalue(const CellDataRef u);
+    virtual bool hasQuietEigenvalue() const {return true;}  // getMaxEigenvalue never prints
     virtual vector<double>& computePhysicalFlux(const CellDataRef u);
     double getGamma(){return m_gamma;}
 protected:

@@ -22,6 +22,7 @@ public:
     LaxFriedrichFlux(string name) : FluxScheme(name), m_flux(NBEQS), m_flux_l(NBEQS), m_eigenvals_l(NBEQS), m_eigenvals_r(NBEQS), m_flux_r(NBEQS) {}
     ~LaxFriedrichFlux(){}
     vector<double>& operator() (const CellDataRef uL, const CellDataRef uR);
+    void fluxWithEigenvalues(const CellDataRef uL, const CellDataRef uR, double lambdaL, double lambdaR, double* F);
 protected:
     vector<double> m_flux;
     vector<double> m_eigenvals_l;

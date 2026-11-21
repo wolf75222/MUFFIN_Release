@@ -60,4 +60,18 @@ vector<double>& SixMomentAQMOM1DFlux::operator()(const CellDataRef uL, const Cel
 
 }
 
-
+void SixMomentAQMOM1DFlux::fluxWithEigenvalues(const CellDataRef uL, const CellDataRef uR, double lambdaL, double lambdaR, double* F)
+{
+    const double maxEigenVal = max(lambdaL, lambdaR);
+    m_flux_l      = m_pm->computePhysicalFlux(uL);
+    m_flux_r      = m_pm->computePhysicalFlux(uR);
+    for (unsigned int iEq = 0; iEq < 5; iEq++){
+        F[iEq] = 0.5*(m_flux_l[iEq] + m_flux_r[iEq]) - maxEigenVal*0.5*(uR[iEq] - uL[iEq]);
+    }
+    const double rhoL = uL[0];
+    const double rhoR = uR[0];
+    const double vL = uL[1]/rhoL;
+    const double vR = uR[1]/rhoR;
+    const double max_v = max(abs(vL),abs(vR));
+    F[5] = 0.5*(m_flux_l[5] + m_flux_r[5]) - max_v*0.5*(uR[5] - uL[5]);
+}

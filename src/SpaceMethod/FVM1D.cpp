@@ -31,6 +31,12 @@ void FVM1D::setup(){
     // TODO: Change this
 
     
+    m_cells = &MeshData::getInstance().getData<Cell1D>("Cells");
+    m_rhs   = &MeshData::getInstance().getData<double>("rhs");
+    m_lambdaL.assign(NBCELLS, 0.);
+    m_lambdaR.assign(NBCELLS, 0.);
+    m_faceFlux.assign((NBCELLS + 1)*NBEQS, 0.);
+
     // Initialize the flux scheme
     m_flux = FluxSchemeFactory::CreateFluxScheme(FLUXSCHEMENAME);
     m_flux->setPhysicalModel(m_pm);
@@ -119,6 +125,98 @@ void FVM1D::setBoundaries(){
 }
 
 void FVM1D::computeRHS(){
+
+    // Reconstruction
+    m_reconstructor->reconstructField();
+
+    // Each face flux and each eigenvalue once, the same values as computeRHSReference, which computes the
+    // flux of a face twice and the eigenvalue of a state four times. computeRHSReference runs instead when the
+    // model has no quiet eigenvalue or when a state needs its warning: the log is then printed as before.
+    if (!(m_pm->hasQuietEigenvalue() && quietEigenvalues())) {
+        computeRHSReference();
+        return;
+    }
+
+    const int    n1 = NBCELLS - 1;          // number of cells minus 1
+    FluxScheme& flux1D          = *m_flux;
+    SourceTerm& sourceterm      = *m_source;
+    vector<Cell1D>& cells       = *m_cells;
+    vector<double>& rhs         = *m_rhs;
+    const double* lL = m_lambdaL.data();
+    const double* lR = m_lambdaR.data();
+    double* F = m_faceFlux.data();
+
+    // Face i is between cells i - 1 and i; face 0 has the inlet on its left, face NBCELLS the outlet on its right
+    flux1D.fluxWithEigenvalues(m_uInlet, cells[0].uL, m_lambdaIn, lL[0], F);
+    for (int i = 1; i < NBCELLS; ++i)
+        flux1D.fluxWithEigenvalues(cells[i-1].uR, cells[i].uL, lR[i-1], lL[i], F + i*NBEQS);
+    flux1D.fluxWithEigenvalues(cells[n1].uR, m_uOutlet, lR[n1], m_lambdaOut, F + NBCELLS*NBEQS);
+
+    for (unsigned int iEq = 0; iEq < NBEQS; iEq++)
+        for (int iCell = 0; iCell < NBCELLS; ++iCell)
+            rhs[iEq*NBCELLS + iCell] = F[(iCell+1)*NBEQS + iEq] - F[iCell*NBEQS + iEq];
+
+    // Time step: the sequence of computeRHSReference (running max of the eigenvalues, running min of dt),
+    // with the eigenvalues of the states already computed
+    double maxEigenvalue = 0;
+    maxEigenvalue = max(maxEigenvalue, max(lR[0],max(lL[1], max(m_lambdaIn, lL[0]))));
+    m_dtOvdx = CFL/maxEigenvalue;
+    m_dt     = m_dtOvdx*cells[0].dx;
+    for (int iCell = 1; iCell < n1; ++iCell) {
+        maxEigenvalue    = max(maxEigenvalue, max(lR[iCell],max(lL[iCell+1], max(lR[iCell-1], lL[iCell]))));
+        m_dtOvdx = min(m_dtOvdx, CFL/maxEigenvalue);
+        m_dt     = min(m_dt, m_dtOvdx*cells[iCell].dx);
+    }
+
+    // Compute the sourceTerm
+    sourceterm.computeSource();
+
+    maxEigenvalue    = max(maxEigenvalue, max(lR[n1],max(m_lambdaOut, max(lR[n1-1], lL[n1]))));
+    m_dtOvdx = min(m_dtOvdx, CFL/maxEigenvalue);
+    m_dt     = min(m_dt, m_dtOvdx*cells[n1].dx);
+
+    applySourceFrequency();
+}
+
+// |largest eigenvalue| of every state of the faces, without side effect; false if a state needs the warning
+bool FVM1D::quietEigenvalues(){
+    vector<Cell1D>& cells = *m_cells;
+    double lambda;
+    bool ok = m_pm->getMaxEigenvalueQuiet(m_uInlet, lambda);
+    m_lambdaIn = abs(lambda);
+    ok = m_pm->getMaxEigenvalueQuiet(m_uOutlet, lambda) && ok;
+    m_lambdaOut = abs(lambda);
+    for (int iCell = 0; iCell < NBCELLS; ++iCell) {
+        ok = m_pm->getMaxEigenvalueQuiet(cells[iCell].uL, lambda) && ok;
+        m_lambdaL[iCell] = abs(lambda);
+        ok = m_pm->getMaxEigenvalueQuiet(cells[iCell].uR, lambda) && ok;
+        m_lambdaR[iCell] = abs(lambda);
+    }
+    return ok;
+}
+
+void FVM1D::applySourceFrequency(){
+    vector<Cell1D>& cells = *m_cells;
+    const double sourceFrequency = m_source->getFrequency();
+    if(abs(sourceFrequency) < 1e-12){ // case where the frequency is close to zero
+        const double dtOvdx_convective   = m_dtOvdx;
+        const double dt_convective       = m_dt;
+        m_dtOvdx = dtOvdx_convective;
+        m_dt     = dt_convective;
+    }
+    else{
+        const double Dx                  = cells[0].dx; //Assuming the cells have the same delta_x
+        const double dtOvdx_source       = CFL/(sourceFrequency*Dx);
+        const double dtOvdx_convective   = m_dtOvdx;
+        const double dt_source           = CFL/(sourceFrequency);
+        const double dt_convective       = m_dt;
+
+        m_dtOvdx = min(dtOvdx_source, dtOvdx_convective);
+        m_dt     = min(dt_source, dt_convective);
+    }
+}
+
+void FVM1D::computeRHSReference(){
     
     const int    n1 = NBCELLS - 1;          // number of cells minus 1
     
@@ -131,9 +229,7 @@ void FVM1D::computeRHS(){
     // copy the boundaries to a value
     //not anymore since it is the same ref
     
-    // Reconstruction
-    m_reconstructor->reconstructField();
-    
+    // The reconstruction is done by computeRHS
     double maxEigenvalue = 0;
 
     // Main loop

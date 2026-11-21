@@ -30,6 +30,12 @@ public :
     virtual vector<double>& getEigenvalues(const CellDataRef u) = 0;
     virtual double getMaxEigenvalue(const CellDataRef u) = 0;
     virtual vector<double>& computePhysicalFlux(const CellDataRef u) = 0;
+
+    // getMaxEigenvalue without side effect, for FVM1D to compute it once per state. A model that has it
+    // returns true in hasQuietEigenvalue; getMaxEigenvalueQuiet returns false for a state where
+    // getMaxEigenvalue would print, and FVM1D then runs the step as before, prints included.
+    virtual bool hasQuietEigenvalue() const {return false;}
+    virtual bool getMaxEigenvalueQuiet(const CellDataRef u, double& lambda) {lambda = getMaxEigenvalue(u); return true;}
     
 protected :
     Mixture* m_mixture;

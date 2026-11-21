@@ -7,6 +7,7 @@
 //
 
 #include "SixMomentAQMOM1D.hpp"
+#include "QMOMMaxEigenvalue.hpp"
 #include "PhysicalModelRegistrar.hpp"
 #include <vector>
 
@@ -26,29 +27,22 @@ vector<double>& SixMomentAQMOM1D::getEigenvalues(const CellDataRef u)
 
 double SixMomentAQMOM1D::getMaxEigenvalue(const CellDataRef u)
 {
-
-    const double rho    = u[0];
-    const double v      = u[1]/rho;
-    const double p      = u[2] - rho*v*v;
-    const double q      = u[3] - rho*v*v*v - 3*v*p;
-    const double r      = u[4] - rho*v*v*v*v - 6*v*v*p - 4*v*q;
-    const double r_Max  =  3*p*p/rho;
-    const double K      = r - r_Max;
-    const double a_n     = sqrt(p/rho);
-    const double q_nStar = q/(rho*pow(a_n,3));
-    const double K_nStar = K/(rho*pow(a_n,4));
-    const double r_nStar = K_nStar + 3.;
-
-    const double xi_nStar = max(r_nStar - pow(q_nStar,2) - 1., 0.); // It should be positive, otherwise it is numerical error
-    if(r_nStar - pow(q_nStar,2) - 1. < 0.){
+    bool realizable;
+    double q_nStar, r_nStar;
+    const double lambda = qmomMaxEigenvalue(u, realizable, q_nStar, r_nStar);
+    if(!realizable){
         py::print("WARNING: You are out of the realizability");
         py::print("QStar = ", q_nStar, "  RStar = ", r_nStar);
     }
-    const double A = q_nStar/2.;
-    const double B = 1. + xi_nStar + pow(q_nStar,2)/4.;
-    const double C = sqrt(xi_nStar*(1 + xi_nStar));
+    return lambda;
+}
 
-    return max(abs(v + a_n*(A + sqrt(B + C))), max(abs(v + a_n*(A + sqrt(B - C))), max(abs(v + a_n*(A - sqrt(B + C))), abs(v + a_n*(A - sqrt(B - C))))));
+bool SixMomentAQMOM1D::getMaxEigenvalueQuiet(const CellDataRef u, double& lambda)
+{
+    bool realizable;
+    double q_nStar, r_nStar;
+    lambda = qmomMaxEigenvalue(u, realizable, q_nStar, r_nStar);
+    return realizable;
 }
 
 vector<double>& SixMomentAQMOM1D::computePhysicalFlux(const CellDataRef u)

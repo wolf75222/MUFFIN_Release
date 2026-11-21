@@ -33,4 +33,14 @@ vector<double>& LaxFriedrichFlux::operator()(const CellDataRef uL, const CellDat
 
 }
 
+void LaxFriedrichFlux::fluxWithEigenvalues(const CellDataRef uL, const CellDataRef uR, double lambdaL, double lambdaR, double* F)
+{
+    const double maxEigenVal = max(lambdaL, lambdaR);
+    m_flux_l      = m_pm->computePhysicalFlux(uL);
+    m_flux_r      = m_pm->computePhysicalFlux(uR);
+    for (unsigned int iEq = 0; iEq < NBEQS; iEq++){
+        F[iEq] = 0.5*(m_flux_l[iEq] + m_flux_r[iEq]) - maxEigenVal*0.5*(uR[iEq] - uL[iEq]);
+    }
+}
+
 

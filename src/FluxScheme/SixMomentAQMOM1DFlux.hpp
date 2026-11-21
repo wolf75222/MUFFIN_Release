@@ -22,6 +22,7 @@ public:
     SixMomentAQMOM1DFlux(string name) : FluxScheme(name), m_flux(6), m_flux_l(6), m_eigenvals_l(6), m_eigenvals_r(6), m_flux_r(6) {}
     ~SixMomentAQMOM1DFlux(){}
     vector<double>& operator() (const CellDataRef uL, const CellDataRef uR);
+    void fluxWithEigenvalues(const CellDataRef uL, const CellDataRef uR, double lambdaL, double lambdaR, double* F);
 protected:
     vector<double> m_flux;
     vector<double> m_eigenvals_l;
