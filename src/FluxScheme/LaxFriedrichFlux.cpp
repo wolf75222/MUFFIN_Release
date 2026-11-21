@@ -33,13 +33,17 @@ vector<double>& LaxFriedrichFlux::operator()(const CellDataRef uL, const CellDat
 
 }
 
+// The physical flux of uL waits in F while the model writes that of uR in its own array: the same values as
+// operator(), without copying the two vectors.
 void LaxFriedrichFlux::fluxWithEigenvalues(const CellDataRef uL, const CellDataRef uR, double lambdaL, double lambdaR, double* F)
 {
     const double maxEigenVal = max(lambdaL, lambdaR);
-    m_flux_l      = m_pm->computePhysicalFlux(uL);
-    m_flux_r      = m_pm->computePhysicalFlux(uR);
+    const vector<double>& fluxL = m_pm->computePhysicalFlux(uL);
+    for (unsigned int iEq = 0; iEq < NBEQS; iEq++)
+        F[iEq] = fluxL[iEq];
+    const vector<double>& fluxR = m_pm->computePhysicalFlux(uR);
     for (unsigned int iEq = 0; iEq < NBEQS; iEq++){
-        F[iEq] = 0.5*(m_flux_l[iEq] + m_flux_r[iEq]) - maxEigenVal*0.5*(uR[iEq] - uL[iEq]);
+        F[iEq] = 0.5*(F[iEq] + fluxR[iEq]) - maxEigenVal*0.5*(uR[iEq] - uL[iEq]);
     }
 }
 
