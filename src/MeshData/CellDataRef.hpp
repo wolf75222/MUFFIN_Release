@@ -10,16 +10,25 @@
 #ifndef CellDataRef_hpp
 #define CellDataRef_hpp
 
+#include <cstddef>
 #include <stdio.h>
 #include "../Parameters.hpp"
 #include <pybind11/numpy.h>
 namespace py = pybind11;
 
+// Column iCell of a 2D array (equations x cells). The address of the column and the stride between two
+// equations are read once from the array, whose buffer is allocated once in Simulation1D::setup and never
+// moved: operator[] is a plain load, the same value as m_array->unchecked<2>()(i + offset, iCell).
 class CellDataRef
 {
 public:
-    CellDataRef() : m_array(nullptr), m_iCell(0) {}
-    CellDataRef(py::array_t<double>* array, int iCell, int offset = 0) : m_array(array), m_iCell(iCell), m_offset(offset) {};    
+    CellDataRef() : m_array(nullptr), m_iCell(0), m_offset(0), m_ptr(nullptr), m_stride(0) {}
+    CellDataRef(py::array_t<double>* array, int iCell, int offset = 0) : m_array(array), m_iCell(iCell), m_offset(offset)
+    {
+        m_stride = array->strides(0) / static_cast<py::ssize_t>(sizeof(double));
+        const py::ssize_t cell = array->strides(1) / static_cast<py::ssize_t>(sizeof(double));
+        m_ptr = array->mutable_data() + offset * m_stride + iCell * cell;
+    }
     CellDataRef withOffset(int offset) const {return CellDataRef(m_array, m_iCell,offset);}
     py::array_t<double> getView() const {
         py::buffer_info info = m_array->request();
@@ -37,21 +46,17 @@ public:
             columnPtr
         );
     }
-    double operator [](int i) const {return m_array->unchecked<2>()(i+m_offset, m_iCell);}
-    double & operator [](int i) {return m_array->mutable_unchecked<2>()(i+m_offset, m_iCell);}
-//     operator std::vector<double>() const {
-//         std::vector<double> v(Parameters::NBEQS);
-//         for (int iEq = 0; iEq < Parameters::NBEQS; iEq++)
-//         {
-//             v[iEq] = m_array->at(iEq, m_iCell);
-//         }
-//         return v;
-// }
-    
+    double operator [](int i) const {return m_ptr[i*m_stride];}
+    double & operator [](int i) {return m_ptr[i*m_stride];}
+    const double* data() const {return m_ptr;}
+    std::ptrdiff_t stride() const {return m_stride;}
+
 protected:
     py::array_t<double>* m_array;
     int m_iCell;
     int m_offset;
+    double* m_ptr;
+    std::ptrdiff_t m_stride;
 };
 
 #endif /* CellDataRef_hpp */
