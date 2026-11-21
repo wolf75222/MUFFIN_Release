@@ -63,7 +63,6 @@ void TVD2ndOrder4M1DReconstructor::reconstructField() {
         }
         
         
-        tvdInnerCells(phi, &m_P_CC[iEq*NBCELLS], m_x->data(), &m_P_R[iEq*NBCELLS], &m_P_L[iEq*NBCELLS], n1);
         
         a        = (m_P_CC[iEq*NBCELLS + n1] - m_P_CC[iEq*NBCELLS + n1 - 1])/((*m_x)[n1] - (*m_x)[n1 - 1]);
         b        = (m_P_Out[iEq] - m_P_CC[iEq*NBCELLS + n1])/(xOutlet - (*m_x)[n1]);
@@ -94,6 +93,9 @@ void TVD2ndOrder4M1DReconstructor::reconstructField() {
             m_P_L[iEq*NBCELLS + n1]   = m_P_CC[iEq*NBCELLS + n1] - 0.5*limiterL*(m_P_Out[iEq] - m_P_CC[iEq*NBCELLS + n1]);
         }
     }
+
+    // Inner cells of all the equations, after their first and last cells (the values are independent)
+    tvdInnerCells(phi, m_P_CC.data(), m_x->data(), m_P_R.data(), m_P_L.data(), n1, NBEQS, NBCELLS);
 
     TVD2ndOrder4M1DReconstructor::primToCons_LR();
 }

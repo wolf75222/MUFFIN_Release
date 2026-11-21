@@ -10,7 +10,6 @@
 #define ThirdOrderLimiter_hpp
 
 #include <stdio.h>
-#include <algorithm>
 #include "Limiter.hpp"
 
 class ThirdOrderLimiter : public Limiter
@@ -19,7 +18,7 @@ public:
     ThirdOrderLimiter(string name) : Limiter(name){}
     ~ThirdOrderLimiter() {}
     virtual double operator()(const double& theta);
-    static double value(double theta) {return std::max(0., std::min(2*theta,std::min((2 + theta)/3., 2.)));} // Cada and Torrilhon 2008 limiter
+    static double value(double theta) {return maxValue(0., minValue(2*theta, minValue((2 + theta)/3., 2.)));} // Cada and Torrilhon 2008 limiter
 };
 
 #endif /* ThirdOrderLimiter_hpp */

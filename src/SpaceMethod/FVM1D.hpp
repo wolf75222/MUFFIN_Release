@@ -76,6 +76,11 @@ protected:
     vector<double> m_lambdaL;               // |largest eigenvalue| of the left and right states of each cell
     vector<double> m_lambdaR;
     double m_lambdaIn = 0., m_lambdaOut = 0.;
+    vector<PhysicalModel*> m_pmOf;          // model and flux scheme of thread t (t = 0: m_pm and m_flux)
+    vector<FluxScheme*> m_fluxOf;
+    vector<unique_ptr<PhysicalModel>> m_pmThread;
+    vector<unique_ptr<FluxScheme>> m_fluxThread;
+    bool m_threads = false;                 // fluxes and eigenvalues shared among the threads
     vector<char> m_warnL;                   // true for the states for which getMaxEigenvalue prints a warning
     vector<char> m_warnR;
     bool m_warnIn = false, m_warnOut = false;

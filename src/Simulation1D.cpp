@@ -251,6 +251,24 @@ void Simulation1D::computeNorm(vector<double>& norm, vector<double>& normGlobal)
 
 // -------------------------------------------------------------------------- //
 
+// Residuals as printed by the main loop: fixed, 5 decimals, separated by tabs
+static string formatNorm(const vector<double>& norm)
+{
+    std::ostringstream buffer;
+    buffer << std::fixed << std::setprecision(5) << norm[0];
+    for(int iEq = 1; iEq < NBEQS; iEq++){
+        buffer << "\t" << std::fixed << std::setprecision(5) << norm[iEq];
+    }
+    return buffer.str();
+}
+
+static string formatTime(double t)
+{
+    std::ostringstream buffer;
+    buffer << std::scientific << std::setprecision(3) << t;
+    return buffer.str();
+}
+
 /// Main loop of the 1D Finite Volume Simulation
 
 py::array_t<double> Simulation1D::simulate(){
@@ -271,9 +289,8 @@ py::array_t<double> Simulation1D::simulate(){
     int my_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     
-    // needed to store the norm and time in a string to use py::print
-    std::ostringstream buffer_norm;
-    std::ostringstream buffer_time;
+    // The residuals are written as text only when they are printed
+    bool stepDone = false;
     
     if(final_time_cond == false){
         while ((meanNorm > EPS) && iter < NBSTEPS) { // iterate till convergence
@@ -288,22 +305,14 @@ py::array_t<double> Simulation1D::simulate(){
 
             if (iter % SAVERATE == 0 || iter == 1){  writeData(iter);} //write data
 
-            buffer_norm.str("");
-            buffer_norm.clear();
-            buffer_norm << std::fixed << std::setprecision(5) << norm_global[0];
-            meanNorm += norm_global[0];
-
-            for(int iEq =1; iEq<NBEQS; iEq++){
-                buffer_norm << "\t" << std::fixed << std::setprecision(5) << norm_global[iEq];
+            for(int iEq = 0; iEq < NBEQS; iEq++){
                 meanNorm += norm_global[iEq];
             }
-            buffer_time.str("");
-            buffer_time.clear();
-            buffer_time << std::scientific << std::setprecision(3) << physTime;
-            
+            stepDone = true;
+
             if (my_rank == MPI_WRITER){
                 if (iter % PRINTRATE == 0){
-                    py::print( "Iter[",iter,"] \t Res = [", buffer_norm.str() , "]\t PhysTime = ", buffer_time.str());
+                    py::print( "Iter[",iter,"] \t Res = [", formatNorm(norm_global) , "]\t PhysTime = ", formatTime(physTime));
                 }
             }
             // Compute the mean of the norm to stop simulation
@@ -323,22 +332,14 @@ py::array_t<double> Simulation1D::simulate(){
 
             if ( (SAVERATE!=0 && iter % SAVERATE == 0) || iter == 1){  writeData(iter);} //write data
 
-            buffer_norm.str("");
-            buffer_norm.clear();
-            buffer_norm << std::fixed << std::setprecision(5) << norm_global[0];
-            meanNorm += norm_global[0];
-
-            for(int iEq =1; iEq<NBEQS; iEq++){
-                buffer_norm << "\t" << std::fixed << std::setprecision(5) << norm_global[iEq];
+            for(int iEq = 0; iEq < NBEQS; iEq++){
                 meanNorm += norm_global[iEq];
             }
-            buffer_time.str("");
-            buffer_time.clear();
-            buffer_time << std::scientific << std::setprecision(3) << physTime;
-            
+            stepDone = true;
+
             if (my_rank == MPI_WRITER){
                 if (iter % PRINTRATE == 0){
-                    py::print( "Iter[",iter,"] \t Res = [", buffer_norm.str() , "]\t PhysTime = ", buffer_time.str());
+                    py::print( "Iter[",iter,"] \t Res = [", formatNorm(norm_global) , "]\t PhysTime = ", formatTime(physTime));
                 }
             }
             // Compute the mean of the norm to stop simulation
@@ -348,7 +349,7 @@ py::array_t<double> Simulation1D::simulate(){
     // Write final data
     writeData(iter);
     if (my_rank == MPI_WRITER){
-        py::print( "At iter [" , iter ,"] reached norm [" , buffer_norm.str() ,"]\n");
+        py::print( "At iter [" , iter ,"] reached norm [" , stepDone ? formatNorm(norm_global) : string() ,"]\n");
     }
 
     setResidual(norm_global);

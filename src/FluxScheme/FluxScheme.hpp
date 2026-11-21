@@ -33,6 +33,9 @@ public:
     // Calls getMaxEigenvalue on the states of operator() for which call is true, in the order of operator(), so
     // that the warnings printed by the model come in the same order.
     virtual void eigenvalueCalls(const CellDataRef uL, const CellDataRef uR, bool callL, bool callR) {}
+    // A copy for another thread, working with the model pm (see PhysicalModel::cloneForThread); nullptr if the
+    // scheme keeps state between calls.
+    virtual std::unique_ptr<FluxScheme> cloneForThread(PhysicalModel* pm) const {return nullptr;}
 protected:
     PhysicalModel* m_pm;
 };

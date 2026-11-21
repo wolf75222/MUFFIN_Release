@@ -10,6 +10,7 @@
 #define PhysicalModel_hpp
 
 #include <stdio.h>
+#include <memory>
 #include <vector>
 #include "../Component.hpp"
 #include "../CollisionalData/Mixture.hpp"
@@ -36,6 +37,9 @@ public :
     // getMaxEigenvalue would print, and FVM1D then runs the step as before, prints included.
     virtual bool hasQuietEigenvalue() const {return false;}
     virtual bool getMaxEigenvalueQuiet(const CellDataRef u, double& lambda) {lambda = getMaxEigenvalue(u); return true;}
+    // A copy for another thread (MUFFIN_THREADS > 1), for the models whose methods change nothing but their own
+    // work arrays; nullptr for the others, which then run on one thread.
+    virtual std::unique_ptr<PhysicalModel> cloneForThread() const {return nullptr;}
     
 protected :
     Mixture* m_mixture;

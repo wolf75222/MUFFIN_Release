@@ -24,6 +24,12 @@ public:
     vector<double>& operator() (const CellDataRef uL, const CellDataRef uR);
     void fluxWithEigenvalues(const CellDataRef uL, const CellDataRef uR, double lambdaL, double lambdaR, double* F);
     bool hasEigenvalueCalls() const {return true;}
+    std::unique_ptr<FluxScheme> cloneForThread(PhysicalModel* pm) const
+    {
+        auto f = std::make_unique<LaxFriedrichFlux>(*this);
+        f->setPhysicalModel(pm);
+        return f;
+    }
     void eigenvalueCalls(const CellDataRef uL, const CellDataRef uR, bool callL, bool callR);
 protected:
     vector<double> m_flux;

@@ -8,6 +8,7 @@
 
 #include "FVM1D.hpp"
 #include "../PhysicalModel/ModelWarnings.hpp"
+#include "../Parallel.hpp"
 #include "../FluxScheme/FluxSchemeFactory.hpp"
 #include "../SourceTerm/SourceTermFactory.hpp"
 #include "../SpaceReconstructor/ReconstructorFactory.hpp"
@@ -43,6 +44,34 @@ void FVM1D::setup(){
     // Initialize the flux scheme
     m_flux = FluxSchemeFactory::CreateFluxScheme(FLUXSCHEMENAME);
     m_flux->setPhysicalModel(m_pm);
+
+    // Model and flux scheme of each thread (MUFFIN_THREADS > 1): copies for threads 1, 2, ..., if the model and the
+    // scheme can be copied; otherwise the fluxes and eigenvalues are computed on one thread.
+    m_pmOf.assign(1, m_pm);
+    m_fluxOf.assign(1, m_flux.get());
+    m_pmThread.clear();
+    m_fluxThread.clear();
+    m_threads = false;
+    if (muffinThreads() > 1 && m_pm->hasQuietEigenvalue()) {
+        m_threads = true;
+        for (int t = 1; t < muffinThreads() && m_threads; ++t) {
+            unique_ptr<PhysicalModel> pm = m_pm->cloneForThread();
+            unique_ptr<FluxScheme> flux = pm ? m_flux->cloneForThread(pm.get()) : nullptr;
+            m_threads = pm && flux;
+            if (m_threads) {
+                m_pmOf.push_back(pm.get());
+                m_fluxOf.push_back(flux.get());
+                m_pmThread.push_back(std::move(pm));
+                m_fluxThread.push_back(std::move(flux));
+            }
+        }
+        if (!m_threads) {
+            m_pmOf.assign(1, m_pm);
+            m_fluxOf.assign(1, m_flux.get());
+            m_pmThread.clear();
+            m_fluxThread.clear();
+        }
+    }
 
     
     // Initialize the source term
@@ -148,7 +177,6 @@ void FVM1D::computeRHS(){
     }
 
     const int    n1 = NBCELLS - 1;          // number of cells minus 1
-    FluxScheme& flux1D          = *m_flux;
     SourceTerm& sourceterm      = *m_source;
     vector<Cell1D>& cells       = *m_cells;
     vector<double>& rhs         = *m_rhs;
@@ -157,10 +185,19 @@ void FVM1D::computeRHS(){
     double* F = m_faceFlux.data();
 
     // Face i is between cells i - 1 and i; face 0 has the inlet on its left, face NBCELLS the outlet on its right
-    flux1D.fluxWithEigenvalues(m_uInlet, cells[0].uL, m_lambdaIn, lL[0], F);
-    for (int i = 1; i < NBCELLS; ++i)
-        flux1D.fluxWithEigenvalues(cells[i-1].uR, cells[i].uL, lR[i-1], lL[i], F + i*NBEQS);
-    flux1D.fluxWithEigenvalues(cells[n1].uR, m_uOutlet, lR[n1], m_lambdaOut, F + NBCELLS*NBEQS);
+    auto faces = [&](int begin, int end, int thread) {
+        FluxScheme& flux1D = *m_fluxOf[thread];
+        for (int i = begin; i < end; ++i) {
+            if (i == 0)
+                flux1D.fluxWithEigenvalues(m_uInlet, cells[0].uL, m_lambdaIn, lL[0], F);
+            else if (i == NBCELLS)
+                flux1D.fluxWithEigenvalues(cells[n1].uR, m_uOutlet, lR[n1], m_lambdaOut, F + NBCELLS*NBEQS);
+            else
+                flux1D.fluxWithEigenvalues(cells[i-1].uR, cells[i].uL, lR[i-1], lL[i], F + i*NBEQS);
+        }
+    };
+    if (m_threads) parallelRange(0, NBCELLS + 1, faces);
+    else faces(0, NBCELLS + 1, 0);
 
     for (unsigned int iEq = 0; iEq < NBEQS; iEq++)
         for (int iCell = 0; iCell < NBCELLS; ++iCell)
@@ -200,14 +237,21 @@ bool FVM1D::quietEigenvalues(){
     m_lambdaIn = abs(lambda);
     m_warnOut = !m_pm->getMaxEigenvalueQuiet(m_uOutlet, lambda);
     m_lambdaOut = abs(lambda);
+    auto states = [&](int begin, int end, int thread) {
+        PhysicalModel& pm = *m_pmOf[thread];
+        double lambda;
+        for (int iCell = begin; iCell < end; ++iCell) {
+            m_warnL[iCell] = !pm.getMaxEigenvalueQuiet(cells[iCell].uL, lambda);
+            m_lambdaL[iCell] = abs(lambda);
+            m_warnR[iCell] = !pm.getMaxEigenvalueQuiet(cells[iCell].uR, lambda);
+            m_lambdaR[iCell] = abs(lambda);
+        }
+    };
+    if (m_threads) parallelRange(0, NBCELLS, states);
+    else states(0, NBCELLS, 0);
     bool ok = !(m_warnIn || m_warnOut);
-    for (int iCell = 0; iCell < NBCELLS; ++iCell) {
-        m_warnL[iCell] = !m_pm->getMaxEigenvalueQuiet(cells[iCell].uL, lambda);
-        m_lambdaL[iCell] = abs(lambda);
-        m_warnR[iCell] = !m_pm->getMaxEigenvalueQuiet(cells[iCell].uR, lambda);
-        m_lambdaR[iCell] = abs(lambda);
+    for (int iCell = 0; iCell < NBCELLS; ++iCell)
         ok = ok && !(m_warnL[iCell] || m_warnR[iCell]);
-    }
     return ok;
 }
 

@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include "TVDReconstructor.hpp"
+#include "../Parallel.hpp"
 #include "../MeshData/MeshData.hpp"
 #include "../MeshData/Cell1D.hpp"
 
@@ -43,23 +44,25 @@ public:
         m_P_In[4] = r;        
         m_P_In[5] = (*m_boundaries)[0][5];        
             
-        for (int iCell = 0; iCell < NBCELLS; iCell++)
-        {
+        parallelRange(0, NBCELLS, [&](int begin, int end, int) {
+            for (int iCell = begin; iCell < end; iCell++)
+            {
 
-            rho    = (*m_cells)[iCell].uCC[0];
-            v      = (*m_cells)[iCell].uCC[1]/rho;
-            p      = (*m_cells)[iCell].uCC[2] - rho*v*v;
-            q      = (*m_cells)[iCell].uCC[3] - rho*v*v*v - 3*v*p;
-            r      = (*m_cells)[iCell].uCC[4] - rho*v*v*v*v - 6*v*v*p - 4*v*q;
+                const double rho    = (*m_cells)[iCell].uCC[0];
+                const double v      = (*m_cells)[iCell].uCC[1]/rho;
+                const double p      = (*m_cells)[iCell].uCC[2] - rho*v*v;
+                const double q      = (*m_cells)[iCell].uCC[3] - rho*v*v*v - 3*v*p;
+                const double r      = (*m_cells)[iCell].uCC[4] - rho*v*v*v*v - 6*v*v*p - 4*v*q;
 
-            m_P_CC[0*NBCELLS + iCell] = rho;
-            m_P_CC[1*NBCELLS + iCell] = v;
-            m_P_CC[2*NBCELLS + iCell] = p;
-            m_P_CC[3*NBCELLS + iCell] = q;
-            m_P_CC[4*NBCELLS + iCell] = r;
-            m_P_CC[5*NBCELLS + iCell] = (*m_cells)[iCell].uCC[5];
+                m_P_CC[0*NBCELLS + iCell] = rho;
+                m_P_CC[1*NBCELLS + iCell] = v;
+                m_P_CC[2*NBCELLS + iCell] = p;
+                m_P_CC[3*NBCELLS + iCell] = q;
+                m_P_CC[4*NBCELLS + iCell] = r;
+                m_P_CC[5*NBCELLS + iCell] = (*m_cells)[iCell].uCC[5];
 
-        }
+            }
+        });
         
         
         rho    =  (*m_boundaries)[1][0];
@@ -79,38 +82,40 @@ public:
 
     void primToCons_LR(){
 
-        for (int iCell = 0; iCell < NBCELLS; iCell++)
-        {
+        parallelRange(0, NBCELLS, [&](int begin, int end, int) {
+            for (int iCell = begin; iCell < end; iCell++)
+            {
 
-            double rho_L    = m_P_L[0*NBCELLS + iCell];
-            double v_L      = m_P_L[1*NBCELLS + iCell];
-            double p_L      = m_P_L[2*NBCELLS + iCell];
-            double q_L      = m_P_L[3*NBCELLS + iCell];
-            double r_L      = m_P_L[4*NBCELLS + iCell];
-            double p_perp_L = m_P_L[5*NBCELLS + iCell];
+                double rho_L    = m_P_L[0*NBCELLS + iCell];
+                double v_L      = m_P_L[1*NBCELLS + iCell];
+                double p_L      = m_P_L[2*NBCELLS + iCell];
+                double q_L      = m_P_L[3*NBCELLS + iCell];
+                double r_L      = m_P_L[4*NBCELLS + iCell];
+                double p_perp_L = m_P_L[5*NBCELLS + iCell];
 
-            double rho_R    = m_P_R[0*NBCELLS + iCell];
-            double v_R      = m_P_R[1*NBCELLS + iCell];
-            double p_R      = m_P_R[2*NBCELLS + iCell];
-            double q_R      = m_P_R[3*NBCELLS + iCell];
-            double r_R      = m_P_R[4*NBCELLS + iCell];
-            double p_perp_R = m_P_R[5*NBCELLS + iCell];
+                double rho_R    = m_P_R[0*NBCELLS + iCell];
+                double v_R      = m_P_R[1*NBCELLS + iCell];
+                double p_R      = m_P_R[2*NBCELLS + iCell];
+                double q_R      = m_P_R[3*NBCELLS + iCell];
+                double r_R      = m_P_R[4*NBCELLS + iCell];
+                double p_perp_R = m_P_R[5*NBCELLS + iCell];
 
-            (*m_cells)[iCell].uL[0] = rho_L;
-            (*m_cells)[iCell].uL[1] = rho_L*v_L;
-            (*m_cells)[iCell].uL[2] = rho_L*v_L*v_L + p_L;
-            (*m_cells)[iCell].uL[3] = rho_L*v_L*v_L*v_L + 3*v_L*p_L + q_L;
-            (*m_cells)[iCell].uL[4] = rho_L*v_L*v_L*v_L*v_L + 6*v_L*v_L*p_L + 4*v_L*q_L + r_L;
-            (*m_cells)[iCell].uL[5] = p_perp_L;
+                (*m_cells)[iCell].uL[0] = rho_L;
+                (*m_cells)[iCell].uL[1] = rho_L*v_L;
+                (*m_cells)[iCell].uL[2] = rho_L*v_L*v_L + p_L;
+                (*m_cells)[iCell].uL[3] = rho_L*v_L*v_L*v_L + 3*v_L*p_L + q_L;
+                (*m_cells)[iCell].uL[4] = rho_L*v_L*v_L*v_L*v_L + 6*v_L*v_L*p_L + 4*v_L*q_L + r_L;
+                (*m_cells)[iCell].uL[5] = p_perp_L;
 
-            (*m_cells)[iCell].uR[0] = rho_R;
-            (*m_cells)[iCell].uR[1] = rho_R*v_R;
-            (*m_cells)[iCell].uR[2] = rho_R*v_R*v_R + p_R;
-            (*m_cells)[iCell].uR[3] = rho_R*v_R*v_R*v_R + 3*v_R*p_R + q_R;
-            (*m_cells)[iCell].uR[4] = rho_R*v_R*v_R*v_R*v_R + 6*v_R*v_R*p_R + 4*v_R*q_R + r_R;
-            (*m_cells)[iCell].uR[5] = p_perp_R;
+                (*m_cells)[iCell].uR[0] = rho_R;
+                (*m_cells)[iCell].uR[1] = rho_R*v_R;
+                (*m_cells)[iCell].uR[2] = rho_R*v_R*v_R + p_R;
+                (*m_cells)[iCell].uR[3] = rho_R*v_R*v_R*v_R + 3*v_R*p_R + q_R;
+                (*m_cells)[iCell].uR[4] = rho_R*v_R*v_R*v_R*v_R + 6*v_R*v_R*p_R + 4*v_R*q_R + r_R;
+                (*m_cells)[iCell].uR[5] = p_perp_R;
 
-        }
+            }
+        });
 
 
     }

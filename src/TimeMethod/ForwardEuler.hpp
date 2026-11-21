@@ -19,7 +19,8 @@ public:
     ForwardEuler(string name) : TimeMethod(name){}
     ~ForwardEuler() {}
     virtual void takeStep(double dt);
-
+private:
+    vector<double> m_residual2;     // squared residual of each cell, with several threads
 };
 
 #endif /* ForwardEuler_hpp */

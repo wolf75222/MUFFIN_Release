@@ -35,3 +35,9 @@ install(TARGETS muffin
         LIBRARY DESTINATION ${Python3_SITELIB}
         ARCHIVE DESTINATION ${Python3_SITELIB}
         RUNTIME DESTINATION ${Python3_SITELIB})
+
+# Threads shared among the cells when MUFFIN_THREADS > 1 (src/Parallel.hpp); without OpenMP, one thread
+find_package(OpenMP)
+if (OpenMP_CXX_FOUND)
+    target_link_libraries(muffin PRIVATE OpenMP::OpenMP_CXX)
+endif()

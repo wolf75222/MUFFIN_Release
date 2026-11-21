@@ -28,6 +28,7 @@ public:
     virtual vector<double>& getEigenvalues(const CellDataRef u);
     virtual double getMaxEigenvalue(const CellDataRef u);
     virtual bool hasQuietEigenvalue() const {return true;}  // getMaxEigenvalue never prints
+    std::unique_ptr<PhysicalModel> cloneForThread() const {return std::make_unique<EulerEq1D>(*this);}
     virtual vector<double>& computePhysicalFlux(const CellDataRef u);
     double getGamma(){return m_gamma;}
 protected:
