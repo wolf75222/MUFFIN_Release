@@ -60,3 +60,12 @@ WARNING: You need install the library in your python environment everytime you c
 
 
 
+
+
+BRANCH acceleration (fork wolf75222/MUFFIN_Release)
+
+This branch computes the same state at every step, bit for bit, and writes the same log as FractionalStepping, in
+less time: one flux per face and one eigenvalue per state instead of two and four, direct access to the cell data, a
+vectorisable TVD reconstruction, realizability warnings written once per step. It builds as above. With
+MUFFIN_THREADS=N, the loops on cells and faces are shared among N OpenMP threads, with the same result; without this
+variable the code runs on one thread.
