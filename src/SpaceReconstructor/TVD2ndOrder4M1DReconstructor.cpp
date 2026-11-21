@@ -7,6 +7,7 @@
 //
 
 #include "TVD2ndOrder4M1DReconstructor.hpp"
+#include "TVDInnerCells.hpp"
 #include "../MeshData/Cell1D.hpp"
 
 // Self-register with the factory
@@ -62,21 +63,7 @@ void TVD2ndOrder4M1DReconstructor::reconstructField() {
         }
         
         
-        for (int i = 1; i < n1; i++)
-        {
-            double x_ip1    = (*m_x)[i + 1];
-            double x_im1    = (*m_x)[i - 1];
-            double x_i      = (*m_x)[i];
-            
-            a        = (m_P_CC[iEq*NBCELLS + i] - m_P_CC[iEq*NBCELLS + i - 1])/(x_i - x_im1);
-            b        = (m_P_CC[iEq*NBCELLS + i + 1] - m_P_CC[iEq*NBCELLS + i])/(x_ip1 - x_i);
-            theta    = (a != 0.0) ? b/a : 0;
-            limiterR = phi(theta);
-            theta    = (b != 0.0) ? a/b : 0;
-            limiterL = phi(theta);
-            m_P_R[iEq*NBCELLS + i ]    = m_P_CC[iEq*NBCELLS + i] + 0.5*limiterR*(m_P_CC[iEq*NBCELLS + i] - m_P_CC[iEq*NBCELLS + i - 1]);
-            m_P_L[iEq*NBCELLS + i ]    = m_P_CC[iEq*NBCELLS + i] - 0.5*limiterL*(m_P_CC[iEq*NBCELLS + i + 1] - m_P_CC[iEq*NBCELLS + i]);
-        }
+        tvdInnerCells(phi, &m_P_CC[iEq*NBCELLS], m_x->data(), &m_P_R[iEq*NBCELLS], &m_P_L[iEq*NBCELLS], n1);
         
         a        = (m_P_CC[iEq*NBCELLS + n1] - m_P_CC[iEq*NBCELLS + n1 - 1])/((*m_x)[n1] - (*m_x)[n1 - 1]);
         b        = (m_P_Out[iEq] - m_P_CC[iEq*NBCELLS + n1])/(xOutlet - (*m_x)[n1]);

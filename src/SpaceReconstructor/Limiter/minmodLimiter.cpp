@@ -16,5 +16,5 @@ REGISTER_LIMITER("minmod", minmodLimiter);
 
 double minmodLimiter::operator()(const double& theta) {
     
-    return std::max(0., std::min(1.,theta)); // minmod limiter
+    return value(theta);
 }

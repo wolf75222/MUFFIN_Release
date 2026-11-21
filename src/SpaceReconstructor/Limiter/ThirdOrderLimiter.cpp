@@ -15,5 +15,5 @@ REGISTER_LIMITER("thirdOrder", ThirdOrderLimiter);
 
 double ThirdOrderLimiter::operator()(const double& theta) {
     
-    return std::max(0., std::min(2*theta,std::min((2 + theta)/3., 2.))); // Cada and Torrilhon 2008 limiter
+    return value(theta);
 }
